@@ -31,6 +31,8 @@ namespace Client
 
         public void HandleMessage(dynamic message)
         {
+            if (message.msg != "positions")
+                Console.WriteLine(message.msg);
             dynamic dynamicData = message.data;
             string msg = message.msg.ToString();
             switch (msg)

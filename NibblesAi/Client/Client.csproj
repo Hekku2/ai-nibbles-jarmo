@@ -52,7 +52,7 @@
     <Compile Include="Messages\ControlMessage.cs" />
     <Compile Include="Messages\CreatedMessage.cs" />
     <Compile Include="GameClient.cs" />
-    <Compile Include="Messages\IStreamToMessageConverter.cs" />
+    <Compile Include="IStreamToMessageConverter.cs" />
     <Compile Include="Messages\JoinMessage.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -61,6 +61,7 @@
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
+    <Compile Include="ManualStreamToMessageConverter.cs" />
     <Compile Include="StreamToMessageConverter.cs" />
   </ItemGroup>
   <ItemGroup>
