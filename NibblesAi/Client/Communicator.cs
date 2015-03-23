@@ -54,8 +54,6 @@ namespace Client
         {
             var converted = JsonConvert.SerializeObject(message, _settings);
             _sender.Client.Send(Encoding.ASCII.GetBytes(converted));
-            //HAX: For some strange reason, sometimes the server doesn't stop reading after JSON end if message is sent too fast.
-            Thread.Sleep(1);
         }
 
         private void ReadMessagesFromServer() 
