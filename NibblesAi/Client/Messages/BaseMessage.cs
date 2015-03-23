@@ -2,7 +2,7 @@
 {
     public class BaseMessage
     {
-        public string msg { get; set; }
-        public object data { get; set; }
+        public dynamic msg { get; set; }
+        public dynamic data { get; set; }
     }
 }

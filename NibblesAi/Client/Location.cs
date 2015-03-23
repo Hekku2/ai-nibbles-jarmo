@@ -1,11 +1,13 @@
-﻿namespace Client
+﻿using System;
+
+namespace Client
 {
     public class Location
     {
-        public int X { get; set; }
-        public int Y { get; set; }
+        public Int64 X { get; set; }
+        public Int64 Y { get; set; }
 
-        public Location(int x, int y)
+        public Location(Int64 x, Int64 y)
         {
             X = x;
             Y = y;

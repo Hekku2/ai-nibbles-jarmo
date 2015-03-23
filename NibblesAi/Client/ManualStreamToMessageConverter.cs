@@ -9,13 +9,14 @@ namespace Client
     public class ManualStreamToMessageConverter : IStreamToMessageConverter
     {
         private const int ReadBufferSize = 2014;
+        private const int ExpectedStringbuilderSize = ReadBufferSize*6;
 
         public void HandleStream(Stream stream, Action<BaseMessage> messageReceived)
         {
             using (var sr = new StreamReader(stream, Encoding.ASCII, false, 2014, true))
             {
                 var readBuffer = new char[ReadBufferSize];
-                var builder = new StringBuilder(ReadBufferSize * 6);
+                var builder = new StringBuilder(ExpectedStringbuilderSize);
                 var notEndedBrackets = 0;
                 var read = sr.Read(readBuffer, 0, readBuffer.Length);
                 while (read > 0)
@@ -23,18 +24,24 @@ namespace Client
                     for (var i = 0; i < read; i++)
                     {
                         notEndedBrackets += BracketStatusDelta(readBuffer[i]);
-
                         builder.Append(readBuffer[i]);
-                        if (notEndedBrackets == 0)
+
+                        if (JsonMessageHasEnded(notEndedBrackets))
                         {
                             var message = JsonConvert.DeserializeObject<BaseMessage>(builder.ToString());
                             messageReceived(message);
-                            builder = new StringBuilder(ReadBufferSize * 6);
+                            builder = new StringBuilder(ExpectedStringbuilderSize);
                         }
                     }
+                    
                     read = sr.Read(readBuffer, 0, readBuffer.Length);
                 }
             }
+        }
+
+        private static bool JsonMessageHasEnded(int notEndedBrackets)
+        {
+            return notEndedBrackets == 0;
         }
 
         private static int BracketStatusDelta(char c)

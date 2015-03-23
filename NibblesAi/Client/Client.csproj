@@ -46,6 +46,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Direction.cs" />
+    <Compile Include="JsonFormatHelper.cs" />
     <Compile Include="Location.cs" />
     <Compile Include="Messages\BaseMessage.cs" />
     <Compile Include="Communicator.cs" />
@@ -62,6 +63,7 @@
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
     <Compile Include="ManualStreamToMessageConverter.cs" />
+    <Compile Include="Snake.cs" />
     <Compile Include="StreamToMessageConverter.cs" />
   </ItemGroup>
   <ItemGroup>

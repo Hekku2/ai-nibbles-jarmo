@@ -42,18 +42,18 @@ namespace Client
                 case "start":
                     _areaWidth = dynamicData.level.width;
                     _areaHeight = dynamicData.level.height;
-                    _playerNo = GetPlayerIndex(dynamicData);
+                    _playerNo = JsonFormatHelper.GetPlayerIndex(dynamicData, _aiName);
                     break;
                 case "positions":
-                    var snake = GetSnake(dynamicData);
-                    var direction = (Direction)snake.direction;
-                    var x = snake.body[0][0];
-                    var y = snake.body[0][1];
+                    Snake snake = JsonFormatHelper.GetSnake(dynamicData, _playerNo);
+                    var direction = snake.Direction;
+                    var x = snake.HeadPosition.X;
+                    var y = snake.HeadPosition.Y;
 
                     if (!AppleIsInPlayfield())
                         break;
 
-                    DecideDirection(direction, x.Value, y.Value);
+                    DecideDirection(direction, x, y);
 
                     break;
                 case "apple":
@@ -113,21 +113,6 @@ namespace Client
         private bool SnakesIsOnTopSideOfApple(Int64 y)
         {
             return y > _apple.Y;
-        }
-
-        private object GetSnake(dynamic data)
-        {
-            return data[_playerNo];
-        }
-
-        private int GetPlayerIndex(dynamic data)
-        {
-            for (var i = 0; i < data.players.Count; i++)
-            {
-                if (data.players[i].name == _aiName)
-                    return i;
-            }
-            return -1;
         }
 
         private bool AppleIsInPlayfield() 

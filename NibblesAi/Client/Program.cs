@@ -7,7 +7,7 @@ namespace Client
     {
         public static void Main(string[] args)
         {
-            var converter = new StreamToMessageConverter();
+            var converter = new ManualStreamToMessageConverter();
             var communicator = new Communicator(Settings.Default.ServerAddress, Settings.Default.ServerPort, converter);
             var gameClient = new GameClient(communicator, Settings.Default.AiName);
 
