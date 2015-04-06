@@ -12,5 +12,21 @@ namespace Client
             X = x;
             Y = y;
         }
+
+        public override string ToString()
+        {
+            return string.Format("({0}:{1})", X, Y);
+        }
+
+        public Direction GetDirection(Location target)
+        {
+            if (target.X > X)
+                return Direction.Right;
+            if (target.X < X)
+                return Direction.Left;
+            if (target.Y > Y)
+                return Direction.Up;
+            return Direction.Down;
+        }
     }
 }

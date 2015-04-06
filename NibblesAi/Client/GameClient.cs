@@ -1,5 +1,6 @@
 ﻿using System;
 using Client.Messages;
+using Functional.Maybe;
 
 namespace Client
 {
@@ -10,9 +11,9 @@ namespace Client
     {
         private readonly Communicator _communicator;
         private readonly string _aiName;
+        private Pathfinder _pathfinder;
 
-        private int _areaWidth;
-        private int _areaHeight;
+        private Direction? _lastSent;
         private int _playerNo;
 
         readonly Location _apple = new Location(-1, -1);
@@ -40,20 +41,29 @@ namespace Client
                 case "created":
                     break;
                 case "start":
-                    _areaWidth = dynamicData.level.width;
-                    _areaHeight = dynamicData.level.height;
+                    _pathfinder = new Pathfinder(dynamicData.level.width.Value, dynamicData.level.height.Value);
                     _playerNo = JsonFormatHelper.GetPlayerIndex(dynamicData, _aiName);
                     break;
                 case "positions":
                     Snake snake = JsonFormatHelper.GetSnake(dynamicData, _playerNo);
-                    var direction = snake.Direction;
-                    var x = snake.HeadPosition.X;
-                    var y = snake.HeadPosition.Y;
 
-                    if (!AppleIsInPlayfield())
+                    if (!AppleIsInPlayfield() || snake.HeadPosition.X < 0 || snake.HeadPosition.Y < 0)
+                    {
+                        Console.WriteLine("No apple or snake is not in play");
+                        break;
+                    }
+
+                    Location[] blocked = JsonFormatHelper.GetBlockedLocations(dynamicData);
+                    Maybe<Direction> target = _pathfinder.FindPath(snake.HeadPosition, _apple, blocked);
+                    if (!target.HasValue)
                         break;
 
-                    DecideDirection(direction, x, y);
+                    if (!_lastSent.HasValue || _lastSent.Value != target.Value)
+                    {
+                        Console.WriteLine(target.Value);
+                        _lastSent = target.Value;
+                        _communicator.Send(new ControlMessage(target.Value));
+                    }
 
                     break;
                 case "apple":
@@ -61,58 +71,6 @@ namespace Client
                     _apple.Y = dynamicData[1];
                     break;
             }
-        }
-
-        private void DecideDirection(Direction snakeDirection, Int64 x, Int64 y)
-        {
-            if (SnakeIsOnLeftSideOfApple(x))
-            {
-                if (snakeDirection == Direction.Left)
-                    _communicator.Send(new ControlMessage(Direction.Down));
-                else
-                    _communicator.Send(new ControlMessage(Direction.Right));
-            }
-            else if (SnakeIsOnRightSideOfApple(x))
-            {
-                if (snakeDirection == Direction.Right)
-                    _communicator.Send(new ControlMessage(Direction.Down));
-                else
-                    _communicator.Send(new ControlMessage(Direction.Left));
-            }
-            else if (SnakesIsOnBottomSideOfApple(y))
-            {
-                if (snakeDirection == Direction.Down)
-                    _communicator.Send(new ControlMessage(Direction.Left));
-                else
-                    _communicator.Send(new ControlMessage(Direction.Up));
-            }
-            else if (SnakesIsOnTopSideOfApple(y))
-            {
-                if (snakeDirection == Direction.Up)
-                    _communicator.Send(new ControlMessage(Direction.Left));
-                else
-                    _communicator.Send(new ControlMessage(Direction.Down));
-            }
-        }
-
-        private bool SnakeIsOnLeftSideOfApple(Int64 x)
-        {
-            return x < _apple.X;
-        }
-
-        private bool SnakeIsOnRightSideOfApple(Int64 x)
-        {
-            return x > _apple.X;
-        }
-
-        private bool SnakesIsOnBottomSideOfApple(Int64 y)
-        {
-            return y < _apple.Y;
-        }
-
-        private bool SnakesIsOnTopSideOfApple(Int64 y)
-        {
-            return y > _apple.Y;
         }
 
         private bool AppleIsInPlayfield() 

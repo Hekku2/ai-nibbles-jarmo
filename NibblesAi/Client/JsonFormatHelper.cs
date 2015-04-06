@@ -30,5 +30,21 @@
 
             return snake;
         }
+
+        public static Location[] GetBlockedLocations(dynamic data)
+        {
+            var blockedLocations = new Location[data.snakes[0].body.Count + data.snakes[1].body.Count];
+            var index = 0;
+            foreach (var snake in data.snakes)
+            {
+                foreach (var bodyPart in snake.body)
+                {
+                    blockedLocations[index] = new Location(bodyPart[0].Value, bodyPart[1].Value);
+                    index++;
+                }
+            }
+
+            return blockedLocations;
+        }
     }
 }
