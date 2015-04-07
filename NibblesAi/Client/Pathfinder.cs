@@ -8,22 +8,20 @@ namespace Client
     /// </summary>
     public class Pathfinder
     {
-        private const int Players = 1;
+        private const int BinaryHeapTopIndex = 1;
+
         private readonly Int64 _mapWidth;
         private readonly Int64 _mapHeight;
 
         private const int NotStarted = 0;
         private const int Found = 1;
 
-        private readonly int[] _openList; //1 dimensional array holding ID# of open list items
-        private readonly ListStatus[,] _whichList;
-        private readonly Location[] _open;
+        private readonly int[] _binaryHeapIdsOfOpenListItems; //1 dimensional array holding ID# of open list items;
+        private readonly PathfindingState[] _open;
 
-        private readonly Location[,] _parent; //2D array of parents
-        private readonly long[] _fcost;	//1d array to store F cost of a cell on the open list
-        private readonly long[,] _movementCostFromStart; 	//2d array to store G cost for each cell.
-        private readonly long[] _estimatedMovementCostToTarget;	//1d array to store H cost of a cell on the open list
-        private readonly int[] _pathLength;
+        private readonly PathfindingState[,] _locations; 
+        private int _pathLength;
+        private int _numberOfOpenListItems;
         private const int NonDiagonalMovementCost = 10;
         private const int DiagonalMovementCost = 14;
 
@@ -31,28 +29,22 @@ namespace Client
         {
             _mapWidth = mapWidth;
             _mapHeight = mapHeight;
-            _openList = new int[_mapWidth * _mapHeight + 2];
-            _whichList = new ListStatus[_mapWidth + 1, mapHeight + 1];
-            _open = new Location[_mapWidth * _mapHeight + 2];
-
-            _parent = InitializeParents(_mapWidth + 1, mapHeight + 1);
-            _fcost = new long[_mapWidth * _mapHeight + 2];
-            _movementCostFromStart = new long[_mapWidth + 1, mapHeight + 1];
-            _estimatedMovementCostToTarget = new long[_mapWidth * _mapHeight + 2];
-            _pathLength = new int[Players];
+            _binaryHeapIdsOfOpenListItems = new int[_mapWidth * _mapHeight + 2];
+            _open = new PathfindingState[_mapWidth * _mapHeight + 2];
+            _locations = InitializeLocations(_mapWidth + 1, mapHeight + 1);
         }
 
-        private static Location[,] InitializeParents(long width, long height)
+        private static PathfindingState[,] InitializeLocations(long width, long height)
         {
-            var parents = new Location[width, height];
+            var locations = new PathfindingState[width, height];
             for (var x = 0; x < width; x++)
             {
                 for (var y = 0; y < height; y++)
                 {
-                    parents[x,y] = new Location(0, 0);
+                    locations[x, y] = new PathfindingState(x, y);
                 }
             }
-            return parents;
+            return locations;
         }
 
         public Maybe<Direction> FindPath(Location startPoint, Location target, Location[] blockedLocations)
@@ -62,14 +54,14 @@ namespace Client
 
             ResetWhichList();
 
-            _pathLength[0] = NotStarted;
-            _movementCostFromStart[startPoint.X, startPoint.Y] = 0;
+            _pathLength = NotStarted;
+            _locations[startPoint.X, startPoint.Y].MovementCostFromStart = 0;
             var newOpenListItemId = 0;
 
             //4.Add the starting location to the open list of squares to be checked.
             var numberOfOpenListItems = 1;
-            _openList[1] = 1;//assign it as the top (and currently only) item in the open list, which is maintained as a binary heap (explained below)
-            _open[1] = startPoint;
+            _binaryHeapIdsOfOpenListItems[BinaryHeapTopIndex] = 1;//assign it as the top (and currently only) item in the open list, which is maintained as a binary heap (explained below)
+            _open[1] = _locations[startPoint.X, startPoint.Y];
 
             //5.Do the following until a path is found or deemed nonexistent.
             int path;
@@ -79,95 +71,82 @@ namespace Client
                 if (numberOfOpenListItems != 0)
                 {
                     //7. Pop the first item off the open list.
-                    var parent = _open[_openList[1]];
-                    _whichList[parent.X, parent.Y] = ListStatus.Closed;
+                    var parent = _open[_binaryHeapIdsOfOpenListItems[1]];
+                    parent.Status = ListStatus.Closed;
                     numberOfOpenListItems = numberOfOpenListItems - 1;
                     OrderBinaryHeap(numberOfOpenListItems+1);
 
                     // 7.Check the adjacent squares. Add these adjacent child squares to the open list
-                    //	for later consideration if appropriate (see various if statements
-                    //	below).
-                    for (var yCoordinate = parent.Y - 1; yCoordinate <= parent.Y + 1; yCoordinate++)
+                    //	for later consideration if appropriate
+                    for (var yCoordinate = parent.Location.Y - 1; yCoordinate <= parent.Location.Y + 1; yCoordinate++)
                     {
-                        for (var xCoordinate = parent.X - 1; xCoordinate <= parent.X + 1; xCoordinate++)
+                        for (var xCoordinate = parent.Location.X - 1; xCoordinate <= parent.Location.X + 1; xCoordinate++)
                         {
                             //	If not off the map (do this first to avoid array out-of-bounds errors)
-                            if (!IsInGamefield(xCoordinate, yCoordinate) || _whichList[xCoordinate, yCoordinate] == ListStatus.Closed)
+                            if (!IsInGamefield(xCoordinate, yCoordinate) || _locations[xCoordinate, yCoordinate].Status == ListStatus.Closed)
                                 continue;
 
-                            if (!CanBeTraversed(blockedLocations, xCoordinate, yCoordinate) || !IsCornerWalkable(blockedLocations, xCoordinate, parent.X, yCoordinate, parent.Y))
+                            if (!CanBeTraversed(blockedLocations, xCoordinate, yCoordinate) || !IsCornerWalkable(blockedLocations, xCoordinate, parent.Location.X, yCoordinate, parent.Location.Y))
                                 continue;
 
                             //	If not already on the open list, add it to the open list.			
-                            if (_whichList[xCoordinate, yCoordinate] != ListStatus.Open)
+                            if (_locations[xCoordinate, yCoordinate].Status != ListStatus.Open)
                             {
                                 //Create a new open list item in the binary heap.
                                 newOpenListItemId = newOpenListItemId + 1; //each new item has a unique ID #
-                                var m = numberOfOpenListItems + 1;
-                                _openList[m] = newOpenListItemId;//place the new open list item (actually, its ID#) at the bottom of the heap
-                                _open[newOpenListItemId] = new Location(xCoordinate, yCoordinate);
-                                _movementCostFromStart[xCoordinate, yCoordinate] = _movementCostFromStart[parent.X, parent.Y] + CalculateAddedCost(xCoordinate, parent.X, yCoordinate, parent.Y);
+                                var i = numberOfOpenListItems + 1;
+                                _binaryHeapIdsOfOpenListItems[i] = newOpenListItemId;//place the new open list item (actually, its ID#) at the bottom of the heap
+                                _open[newOpenListItemId] = _locations[xCoordinate, yCoordinate];
+
+                                _locations[xCoordinate, yCoordinate].MovementCostFromStart = _open[newOpenListItemId].MovementCostFromStart + CalculateAddedCost(xCoordinate, parent.Location.X, yCoordinate, parent.Location.Y);
 
                                 //Figure out its H and F costs and parent
-                                _estimatedMovementCostToTarget[_openList[m]] = 10 * (Math.Abs(xCoordinate - target.X) + Math.Abs(yCoordinate - target.Y));
-                                _fcost[_openList[m]] = _movementCostFromStart[xCoordinate, yCoordinate] + _estimatedMovementCostToTarget[_openList[m]];
+                                _open[_binaryHeapIdsOfOpenListItems[i]].EstimatedMovementCostToTarget = 10 * (Math.Abs(xCoordinate - target.X) + Math.Abs(yCoordinate - target.Y));
+                                _open[_binaryHeapIdsOfOpenListItems[i]].FCost = _locations[xCoordinate, yCoordinate].MovementCostFromStart + _open[_binaryHeapIdsOfOpenListItems[i]].EstimatedMovementCostToTarget;
 
-                                _parent[xCoordinate, yCoordinate] = parent;
+                                _open[newOpenListItemId].Parent = parent;
 
                                 //Move the new open list item to the proper place in the binary heap.
                                 //Starting at the bottom, successively compare to parent items,
                                 //swapping as needed until the item finds its place in the heap
                                 //or bubbles all the way to the top (if it has the lowest F cost).
-                                while (m != 1) //While item hasn't bubbled to the top (m=1)	
+                                while (i != BinaryHeapTopIndex) //While item hasn't bubbled to the top (m=1)	
                                 {
                                     //Check if child's F cost is < parent's F cost. If so, swap them.	
-                                    if (_fcost[_openList[m]] <= _fcost[_openList[m / 2]])
+                                    if (_open[_binaryHeapIdsOfOpenListItems[i]].FCost <= _open[_binaryHeapIdsOfOpenListItems[i / 2]].FCost)
                                     {
-                                        var temp = _openList[m / 2];
-                                        _openList[m / 2] = _openList[m];
-                                        _openList[m] = temp;
-                                        m = m / 2;
+                                        var temp = _binaryHeapIdsOfOpenListItems[i / 2];
+                                        _binaryHeapIdsOfOpenListItems[i / 2] = _binaryHeapIdsOfOpenListItems[i];
+                                        _binaryHeapIdsOfOpenListItems[i] = temp;
+                                        i = i / 2;
                                     }
                                     else
                                         break;
                                 }
-                                numberOfOpenListItems = numberOfOpenListItems + 1;//add one to the number of items in the heap
+                                _numberOfOpenListItems = numberOfOpenListItems = numberOfOpenListItems + 1;
 
                                 //Change whichList to show that the new item is on the open list.
-                                _whichList[xCoordinate, yCoordinate] = ListStatus.Open;
+                                _locations[xCoordinate, yCoordinate].Status = ListStatus.Open;
                             }
                             else
                             {
-                                var calculatedCostFromSTart = _movementCostFromStart[parent.X, parent.Y] + CalculateAddedCost(xCoordinate, parent.X, yCoordinate, parent.Y);	
-                                if (calculatedCostFromSTart >= _movementCostFromStart[xCoordinate, yCoordinate]) continue;
                                 
-                                _parent[xCoordinate, yCoordinate] = parent;
-                                _movementCostFromStart[xCoordinate, yCoordinate] = calculatedCostFromSTart;//change the G cost			
+                                var calculatedCostFromStart = parent.MovementCostFromStart + CalculateAddedCost(xCoordinate, parent.Location.X, yCoordinate, parent.Location.Y);
+                                if (calculatedCostFromStart >= _locations[xCoordinate, yCoordinate].MovementCostFromStart)
+                                    continue;
 
-                                for (var x = 1; x <= numberOfOpenListItems; x++) //look for the item in the heap
-                                {
-                                    if (_open[_openList[x]].X != xCoordinate || _open[_openList[x]].Y != yCoordinate)
-                                        continue;
+                                var considered = _locations[xCoordinate, yCoordinate];
+                                considered.Parent = parent;
+                                considered.MovementCostFromStart = calculatedCostFromStart;	
 
-                                    _fcost[_openList[x]] = _movementCostFromStart[xCoordinate, yCoordinate] + _estimatedMovementCostToTarget[_openList[x]];//change the F cost
+                                var index = FindIndexInOpenList(xCoordinate, yCoordinate);
+                                if (!index.HasValue)
+                                    continue;
 
-                                    //See if changing the F score bubbles the item up from it's current location in the heap
-                                    var m = x;
-                                    while (m != 1) //While item hasn't bubbled to the top (m=1)	
-                                    {
-                                        //Check if child is < parent. If so, swap them.	
-                                        if (_fcost[_openList[m]] < _fcost[_openList[m / 2]])
-                                        {
-                                            var temp = _openList[m / 2];
-                                            _openList[m / 2] = _openList[m];
-                                            _openList[m] = temp;
-                                            m = m / 2;
-                                        }
-                                        else
-                                            break;
-                                    }
-                                    break;
-                                }
+                                _open[_binaryHeapIdsOfOpenListItems[index.Value]].FCost = considered.MovementCostFromStart + _open[_binaryHeapIdsOfOpenListItems[index.Value]].EstimatedMovementCostToTarget;
+
+                                //See if changing the F score bubbles the item up from it's current location in the heap
+                                SortWithNewFCost(index.Value);
                             }
                         }
                     }
@@ -179,7 +158,7 @@ namespace Client
                 }
 
                 //If target is added to open list then path has been found.
-                if (_whichList[target.X, target.Y] == ListStatus.Open)
+                if (_locations[target.X, target.Y].Status == ListStatus.Open)
                 {
                     path = Found;
                     break;
@@ -197,16 +176,48 @@ namespace Client
             do
             {
                 //Look up the parent of the current cell.
-                var parent = _parent[pathX, pathY];
-                pathX = parent.X;
-                pathY = parent.Y;
+                var parent = _locations[pathX, pathY].Parent;
+                pathX = parent.Location.X;
+                pathY = parent.Location.Y;
 
                 //Figure out the path length
-                _pathLength[0] = _pathLength[0] + 1;
+                _pathLength++;
             }
             while (pathX != startPoint.X || pathY != startPoint.Y);
 
             return startPoint.GetDirection(GetFirstStepOfPath(startPoint, target)).ToMaybe();
+        }
+
+        private void SortWithNewFCost(int indexOfChangedItem)
+        {
+            var currentIndex = indexOfChangedItem;
+            while (currentIndex != 1) //While item hasn't bubbled to the top (m=1)	
+            {
+                //Check if child is < parent. If so, swap them.	
+
+                if (_open[_binaryHeapIdsOfOpenListItems[currentIndex]].FCost < _open[_binaryHeapIdsOfOpenListItems[currentIndex / 2]].FCost)
+                {
+                    var temp = _binaryHeapIdsOfOpenListItems[currentIndex / 2];
+                    _binaryHeapIdsOfOpenListItems[currentIndex / 2] = _binaryHeapIdsOfOpenListItems[currentIndex];
+                    _binaryHeapIdsOfOpenListItems[currentIndex] = temp;
+                    currentIndex = currentIndex / 2;
+                }
+                else
+                    break;
+            }
+        }
+
+        private Maybe<int> FindIndexInOpenList(long x, long y)
+        {
+            for (var i = BinaryHeapTopIndex; i <= _numberOfOpenListItems; i++) //look for the item in the heap
+            {
+                var location = _open[_binaryHeapIdsOfOpenListItems[i]];
+                if (location.Location.X != x || location.Location.Y != y)
+                    continue;
+
+                return i.ToMaybe();
+            }
+            return Maybe<int>.Nothing;
         }
 
         private Location GetFirstStepOfPath(Location startPoint, Location target)
@@ -214,16 +225,16 @@ namespace Client
             var pathX = target.X;
             var pathY = target.Y;
 
-            var cellPosition = _pathLength[0] * 2;
+            var cellPosition = _pathLength * 2;
             Location final;
             do
             {
                 cellPosition = cellPosition - 2;
                 final = new Location(pathX, pathY);
 
-                var parent = _parent[pathX, pathY];
-                pathX = parent.X;
-                pathY = parent.Y;
+                var parent = _locations[pathX, pathY].Parent;
+                pathX = parent.Location.X;
+                pathY = parent.Location.Y;
             }
             while (pathX != startPoint.X || pathY != startPoint.Y);
 
@@ -268,7 +279,7 @@ namespace Client
         private void OrderBinaryHeap(int newItemIndex)
         {
             var orderedItemsLastIndex = newItemIndex - 1;
-            _openList[1] = _openList[newItemIndex];
+            _binaryHeapIdsOfOpenListItems[1] = _binaryHeapIdsOfOpenListItems[newItemIndex];
 
             //	Repeat the following until the new item in slot #1 sinks to its proper spot in the heap.
             var v = 1;
@@ -277,11 +288,12 @@ namespace Client
                 var u = v;
                 if (2 * u + 1 <= orderedItemsLastIndex) //if both children exist
                 {
-                    //Check if the F cost of the parent is greater than each child.
+                    //Check if the F cost of the parent is greater than each child. 2 * u + 1
                     //Select the lowest of the two children.
-                    if (_fcost[_openList[u]] >= _fcost[_openList[2*u]])
+
+                    if (_open[_binaryHeapIdsOfOpenListItems[u]].FCost >= _open[_binaryHeapIdsOfOpenListItems[2 * u]].FCost)
                         v = 2*u;
-                    if (_fcost[_openList[v]] >= _fcost[_openList[2*u + 1]])
+                    if (_open[_binaryHeapIdsOfOpenListItems[v]].FCost >= _open[_binaryHeapIdsOfOpenListItems[2 * u + 1]].FCost)
                         v = 2*u + 1;
                 }
                 else
@@ -289,16 +301,16 @@ namespace Client
                     if (2 * u <= orderedItemsLastIndex) //if only child #1 exists
                     {
                         //Check if the F cost of the parent is greater than child #1	
-                        if (_fcost[_openList[u]] >= _fcost[_openList[2*u]])
+                        if (_open[_binaryHeapIdsOfOpenListItems[u]].FCost >= _open[_binaryHeapIdsOfOpenListItems[2 * u]].FCost)
                             v = 2*u;
                     }
                 }
 
                 if (u != v) //if parent's F is > one of its children, swap them
                 {
-                    var temp = _openList[u];
-                    _openList[u] = _openList[v];
-                    _openList[v] = temp;
+                    var temp = _binaryHeapIdsOfOpenListItems[u];
+                    _binaryHeapIdsOfOpenListItems[u] = _binaryHeapIdsOfOpenListItems[v];
+                    _binaryHeapIdsOfOpenListItems[v] = temp;
                 }
                 else
                     break; //otherwise, exit loop
@@ -309,7 +321,7 @@ namespace Client
         {
             for (var x = 0; x < _mapWidth; x++)
                 for (var y = 0; y < _mapHeight; y++)
-                    _whichList[x, y] = ListStatus.None;
+                    _locations[x, y].Status = ListStatus.None;
         }
 
         private static int CalculateAddedCost(long xCoordinate, long parentXval, long yCoordinate, long parentYval)
