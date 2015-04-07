@@ -60,6 +60,7 @@
     <Compile Include="IStreamToMessageConverter.cs" />
     <Compile Include="Messages\JoinMessage.cs" />
     <Compile Include="Pathfinder.cs" />
+    <Compile Include="PathfindingBinaryHeap.cs" />
     <Compile Include="PathfindingState.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
