@@ -8,15 +8,13 @@ namespace Client
     /// </summary>
     public class Pathfinder
     {
-        
-
         private readonly Int64 _mapWidth;
         private readonly Int64 _mapHeight;
 
         private const int NotStarted = 0;
         private const int Found = 1;
 
-        private PathfindingBinaryHeap _heap;
+        private readonly PathfindingBinaryHeap _heap;
 
         private readonly PathfindingState[,] _locations; 
         private int _pathLength;
@@ -47,7 +45,7 @@ namespace Client
         public Maybe<Direction> FindPath(Location startPoint, Location target, Location[] blockedLocations)
         {
             _heap.Clear();
-            if (startPoint.X == target.X && startPoint.Y == target.Y || !IsInGamefield(target.X, target.Y))
+            if (startPoint == target || !IsInGamefield(target))
                 return Maybe<Direction>.Nothing;
 
             ResetWhichList();
@@ -71,40 +69,30 @@ namespace Client
 
                     // 7.Check the adjacent squares. Add these adjacent child squares to the open list
                     //	for later consideration if appropriate
-                    for (var yCoordinate = parent.Location.Y - 1; yCoordinate <= parent.Location.Y + 1; yCoordinate++)
+                    foreach (var location in AdjacentLocations(parent.Location))
                     {
-                        for (var xCoordinate = parent.Location.X - 1; xCoordinate <= parent.Location.X + 1; xCoordinate++)
+                        //	If not off the map (do this first to avoid array out-of-bounds errors)
+                        if (!IsInGamefield(location) || _locations[location.X, location.Y].Status == ListStatus.Closed)
+                            continue;
+
+                        if (!CanBeTraversed(blockedLocations, location.X, location.Y) || !IsCornerWalkable(blockedLocations, location, parent.Location))
+                            continue;
+
+                        //	If not already on the open list, add it to the open list.			
+                        if (_locations[location.X, location.Y].Status != ListStatus.Open)
                         {
-                            //	If not off the map (do this first to avoid array out-of-bounds errors)
-                            if (!IsInGamefield(xCoordinate, yCoordinate) || _locations[xCoordinate, yCoordinate].Status == ListStatus.Closed)
-                                continue;
-
-                            if (!CanBeTraversed(blockedLocations, xCoordinate, yCoordinate) || !IsCornerWalkable(blockedLocations, xCoordinate, parent.Location.X, yCoordinate, parent.Location.Y))
-                                continue;
-
-                            //	If not already on the open list, add it to the open list.			
-                            if (_locations[xCoordinate, yCoordinate].Status != ListStatus.Open)
-                            {
-                                //Figure out its H and F costs and parent
-                                var newItem = _locations[xCoordinate, yCoordinate];
-                                newItem.MovementCostFromStart = newItem.MovementCostFromStart + CalculateAddedCost(xCoordinate, parent.Location.X, yCoordinate, parent.Location.Y);
-                                newItem.EstimatedMovementCostToTarget = 10 * (Math.Abs(xCoordinate - target.X) + Math.Abs(yCoordinate - target.Y));
-                                newItem.FCost = newItem.MovementCostFromStart + newItem.EstimatedMovementCostToTarget;
-                                newItem.Parent = parent;
-                                newItem.Status = ListStatus.Open;
-                                _heap.Add(newItem);
-                            }
-                            else
-                            {
-                                var calculatedCostFromStart = parent.MovementCostFromStart + CalculateAddedCost(xCoordinate, parent.Location.X, yCoordinate, parent.Location.Y);
-                                if (calculatedCostFromStart >= _locations[xCoordinate, yCoordinate].MovementCostFromStart)
-                                    continue;
-
-                                var considered = _locations[xCoordinate, yCoordinate];
-                                considered.Parent = parent;
-                                considered.MovementCostFromStart = calculatedCostFromStart;
-                                _heap.CalculateNewFCostAndSort(xCoordinate, yCoordinate, considered.MovementCostFromStart);
-                            }
+                            //Figure out its H and F costs and parent
+                            var newItem = _locations[location.X, location.Y];
+                            newItem.MovementCostFromStart = newItem.MovementCostFromStart + CalculateAddedCost(location.X, parent.Location.X, location.Y, parent.Location.Y);
+                            newItem.EstimatedMovementCostToTarget = 10 * (Math.Abs(location.X - target.X) + Math.Abs(location.Y - target.Y));
+                            newItem.FCost = newItem.MovementCostFromStart + newItem.EstimatedMovementCostToTarget;
+                            newItem.Parent = parent;
+                            newItem.Status = ListStatus.Open;
+                            _heap.Add(newItem);
+                        }
+                        else
+                        {
+                            AdjustLocationIfCloserFromStart(parent, location);
                         }
                     }
                 }
@@ -128,80 +116,102 @@ namespace Client
 
             //  a.Working backwards from the target to the starting location by checking
             //	each cell's parent, figure out the length of the path.
-            var pathX = target.X;
-            var pathY = target.Y;
+            var pathStep = target;
             do
             {
                 //Look up the parent of the current cell.
-                var parent = _locations[pathX, pathY].Parent;
-                pathX = parent.Location.X;
-                pathY = parent.Location.Y;
+                var parent = _locations[pathStep.X, pathStep.Y].Parent;
+                pathStep = parent.Location;
 
                 //Figure out the path length
                 _pathLength++;
             }
-            while (pathX != startPoint.X || pathY != startPoint.Y);
+            while (pathStep != startPoint);
 
             return startPoint.GetDirection(GetFirstStepOfPath(startPoint, target)).ToMaybe();
         }
 
+        private void AdjustLocationIfCloserFromStart(PathfindingState parent, Location location)
+        {
+            var calculatedCostFromStart = parent.MovementCostFromStart +
+                                          CalculateAddedCost(location.X, parent.Location.X, location.Y, parent.Location.Y);
+            if (calculatedCostFromStart >= _locations[location.X, location.Y].MovementCostFromStart)
+                return;
+
+            var considered = _locations[location.X, location.Y];
+            considered.Parent = parent;
+            considered.MovementCostFromStart = calculatedCostFromStart;
+            _heap.CalculateNewFCostAndSort(location.X, location.Y, considered.MovementCostFromStart);
+        }
+
+        private static Location[] AdjacentLocations(Location location)
+        {
+            var locations = new Location[9];
+            var i = 0;
+            for (var yCoordinate = location.Y - 1; yCoordinate <= location.Y + 1; yCoordinate++)
+            {
+                for (var xCoordinate = location.X - 1; xCoordinate <= location.X + 1; xCoordinate++)
+                {
+                    locations[i] = new Location(xCoordinate, yCoordinate);
+                    i++;
+                }
+            }
+            return locations;
+        }
+
         private Location GetFirstStepOfPath(Location startPoint, Location target)
         {
-            var pathX = target.X;
-            var pathY = target.Y;
+            var path = target;
 
             var cellPosition = _pathLength * 2;
             Location final;
             do
             {
                 cellPosition = cellPosition - 2;
-                final = new Location(pathX, pathY);
+                final = new Location(path.X, path.Y);
 
-                var parent = _locations[pathX, pathY].Parent;
-                pathX = parent.Location.X;
-                pathY = parent.Location.Y;
+                var parent = _locations[path.X, path.Y].Parent;
+                path = parent.Location;
             }
-            while (pathX != startPoint.X || pathY != startPoint.Y);
+            while (path != startPoint);
 
             return final;
         }
 
-        private bool IsCornerWalkable(Location[] blockedLocations, long xCoordinate, long parentXval, long yCoordinate, long parentYval)
+        private static bool IsCornerWalkable(Location[] blockedLocations, Location location, Location parent)
         {
-            if (xCoordinate == parentXval - 1)
+            if (location.X == parent.X - 1)
             {
-                if (yCoordinate == parentYval - 1)
+                if (location.Y == parent.Y - 1)
                 {
-                    if (!CanBeTraversed(blockedLocations, parentXval - 1, parentYval) ||
-                        !CanBeTraversed(blockedLocations, parentXval, parentYval - 1))
+                    if (!CanBeTraversed(blockedLocations, parent.X - 1, parent.Y) ||
+                        !CanBeTraversed(blockedLocations, parent.X, parent.Y - 1))
                         return false;
                 }
-                else if (yCoordinate == parentYval + 1)
+                else if (location.Y == parent.Y + 1)
                 {
-                    if (!CanBeTraversed(blockedLocations, parentXval, parentYval + 1) ||
-                        !CanBeTraversed(blockedLocations, parentXval - 1, parentYval))
+                    if (!CanBeTraversed(blockedLocations, parent.X, parent.Y + 1) ||
+                        !CanBeTraversed(blockedLocations, parent.X - 1, parent.Y))
                         return false;
                 }
             }
-            else if (xCoordinate == parentXval + 1)
+            else if (location.X == parent.X + 1)
             {
-                if (yCoordinate == parentYval - 1)
+                if (location.Y == parent.Y - 1)
                 {
-                    if (!CanBeTraversed(blockedLocations, parentXval, parentYval - 1) ||
-                        !CanBeTraversed(blockedLocations, parentXval + 1, parentYval))
+                    if (!CanBeTraversed(blockedLocations, parent.X, parent.Y - 1) ||
+                        !CanBeTraversed(blockedLocations, parent.X + 1, parent.Y))
                         return false;
                 }
-                else if (yCoordinate == parentYval + 1)
+                else if (location.Y == parent.Y + 1)
                 {
-                    if (!CanBeTraversed(blockedLocations, parentXval + 1, parentYval) ||
-                        !CanBeTraversed(blockedLocations, parentXval, parentYval + 1))
+                    if (!CanBeTraversed(blockedLocations, parent.X + 1, parent.Y) ||
+                        !CanBeTraversed(blockedLocations, parent.X, parent.Y + 1))
                         return false;
                 }
             }
             return true;
         }
-
-
 
         private void ResetWhichList()
         {
@@ -217,7 +227,7 @@ namespace Client
             return NonDiagonalMovementCost;
         }
 
-        private bool CanBeTraversed(Location[] blockedLocations, long x, long y)
+        private static bool CanBeTraversed(Location[] blockedLocations, long x, long y)
         {
             foreach (var location in blockedLocations)
             {
@@ -227,9 +237,9 @@ namespace Client
             return true;
         }
 
-        private bool IsInGamefield(long x, long y)
+        private bool IsInGamefield(Location location)
         {
-            return x >= 0 && x < _mapWidth && y >= 0 && y < _mapHeight;
+            return location.X >= 0 && location.X < _mapWidth && location.Y >= 0 && location.Y < _mapHeight;
         }
     }
 }

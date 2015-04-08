@@ -1,12 +1,11 @@
 ﻿using System;
-using Functional.Maybe;
 
 namespace Client
 {
     public class PathfindingBinaryHeap
     {
-        private int _numberOfItems = 0;
-        private int _newOpenListItemId = 0;
+        private int _numberOfItems;
+        private int _newOpenListItemId;
         private const int BinaryHeapTopIndex = 1;
         private readonly int[] _binaryHeapIdsOfOpenListItems;
         private readonly PathfindingState[] _open;

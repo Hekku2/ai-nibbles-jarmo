@@ -105,5 +105,37 @@ namespace ClientTests
             var pathFinder = new Pathfinder(2, 2);
             Assert.IsFalse(pathFinder.FindPath(new Location(0, 0), target, blocks).HasValue);
         }
+
+        [Test]
+        public void TestCornerCaseWithRouteVertical()
+        {
+            var blocks = new[]
+            {
+                new Location(1, 0)
+            };
+            /****
+             *s**
+             * t*
+             ****/
+            var target = new Location(1, 1);
+            var pathFinder = new Pathfinder(2, 2);
+            Assert.AreEqual(Direction.Up, pathFinder.FindPath(new Location(0, 0), target, blocks).Value);
+        }
+
+        [Test]
+        public void TestCornerCaseWithRouteHorisontal()
+        {
+            var blocks = new[]
+            {
+                new Location(0, 1)
+            };
+            /****
+             *s *
+             **t*
+             ****/
+            var target = new Location(1, 1);
+            var pathFinder = new Pathfinder(2, 2);
+            Assert.AreEqual(Direction.Right, pathFinder.FindPath(new Location(0, 0), target, blocks).Value);
+        }
     }
 }
