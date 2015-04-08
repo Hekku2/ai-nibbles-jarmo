@@ -7,24 +7,18 @@ namespace Client
         private int _numberOfItems;
         private int _newOpenListItemId;
         private const int BinaryHeapTopIndex = 1;
-        private readonly int[] _binaryHeapIdsOfOpenListItems;
-        private readonly PathfindingState[] _open;
+        private readonly PathfindingState[] _binaryHeapIdsOfOpenListItems;
 
         public PathfindingBinaryHeap(Int64 size)
         {
-            _open = new PathfindingState[size + 2];
-            _binaryHeapIdsOfOpenListItems = new int[size + 2];
-
-            _binaryHeapIdsOfOpenListItems[BinaryHeapTopIndex] = 1;
+            _binaryHeapIdsOfOpenListItems = new PathfindingState[size + 2];
         }
 
         public void Add(PathfindingState value)
         {
-            
             _newOpenListItemId = _newOpenListItemId + 1; //each new item has a unique ID #
             var i = ++_numberOfItems;
-            _binaryHeapIdsOfOpenListItems[i] = _newOpenListItemId;//place the new open list item (actually, its ID#) at the bottom of the heap
-            _open[_newOpenListItemId] = value;
+            _binaryHeapIdsOfOpenListItems[i] = value;
 
             //Move the new open list item to the proper place in the binary heap.
             //Starting at the bottom, successively compare to parent items,
@@ -33,7 +27,7 @@ namespace Client
             while (i != BinaryHeapTopIndex) //While item hasn't bubbled to the top (m=1)	
             {
                 //Check if child's F cost is < parent's F cost. If so, swap them.	
-                if (_open[_binaryHeapIdsOfOpenListItems[i]].FCost <= _open[_binaryHeapIdsOfOpenListItems[i / 2]].FCost)
+                if (_binaryHeapIdsOfOpenListItems[i].FCost <= _binaryHeapIdsOfOpenListItems[i / 2].FCost)
                 {
                     var temp = _binaryHeapIdsOfOpenListItems[i / 2];
                     _binaryHeapIdsOfOpenListItems[i / 2] = _binaryHeapIdsOfOpenListItems[i];
@@ -52,18 +46,18 @@ namespace Client
 
         private PathfindingState LowestFCost()
         {
-            return _open[_binaryHeapIdsOfOpenListItems[BinaryHeapTopIndex]];
+            return _binaryHeapIdsOfOpenListItems[BinaryHeapTopIndex];
         }
 
         public void CalculateNewFCostAndSort(long x, long y, long movementCostFromStart)
         {
             for (var i = BinaryHeapTopIndex; i <= _numberOfItems; i++) //look for the item in the heap
             {
-                var location = _open[_binaryHeapIdsOfOpenListItems[i]];
+                var location = _binaryHeapIdsOfOpenListItems[i];
                 if (location.Location.X != x || location.Location.Y != y)
                     continue;
 
-                _open[_binaryHeapIdsOfOpenListItems[i]].FCost = movementCostFromStart + _open[_binaryHeapIdsOfOpenListItems[i]].EstimatedMovementCostToTarget;
+                _binaryHeapIdsOfOpenListItems[i].FCost = movementCostFromStart + _binaryHeapIdsOfOpenListItems[i].EstimatedMovementCostToTarget;
                 SortWithNewFCost(i);
                 break;
             }
@@ -72,10 +66,10 @@ namespace Client
         private void SortWithNewFCost(int indexOfChangedItem)
         {
             var currentIndex = indexOfChangedItem;
-            while (currentIndex != 1) //While item hasn't bubbled to the top (m=1)	
+            while (currentIndex != BinaryHeapTopIndex) //While item hasn't bubbled to the top (m=1)	
             {
                 //Check if child is < parent. If so, swap them.	
-                if (_open[_binaryHeapIdsOfOpenListItems[currentIndex]].FCost < _open[_binaryHeapIdsOfOpenListItems[currentIndex / 2]].FCost)
+                if (_binaryHeapIdsOfOpenListItems[currentIndex].FCost < _binaryHeapIdsOfOpenListItems[currentIndex / 2].FCost)
                 {
                     var temp = _binaryHeapIdsOfOpenListItems[currentIndex / 2];
                     _binaryHeapIdsOfOpenListItems[currentIndex / 2] = _binaryHeapIdsOfOpenListItems[currentIndex];
@@ -100,7 +94,7 @@ namespace Client
             var orderedItemsLastIndex = newItemIndex;
             _binaryHeapIdsOfOpenListItems[BinaryHeapTopIndex] = _binaryHeapIdsOfOpenListItems[newItemIndex + 1];
 
-            //	Repeat the following until the new item in slot #1 sinks to its proper spot in the heap.
+            //Repeat the following until the new item in slot #1 sinks to its proper spot in the heap.
             var v = 1;
             do
             {
@@ -110,9 +104,9 @@ namespace Client
                     //Check if the F cost of the parent is greater than each child. 2 * u + 1
                     //Select the lowest of the two children.
 
-                    if (_open[_binaryHeapIdsOfOpenListItems[u]].FCost >= _open[_binaryHeapIdsOfOpenListItems[2 * u]].FCost)
+                    if (_binaryHeapIdsOfOpenListItems[u].FCost >= _binaryHeapIdsOfOpenListItems[2 * u].FCost)
                         v = 2 * u;
-                    if (_open[_binaryHeapIdsOfOpenListItems[v]].FCost >= _open[_binaryHeapIdsOfOpenListItems[2 * u + 1]].FCost)
+                    if (_binaryHeapIdsOfOpenListItems[v].FCost >= _binaryHeapIdsOfOpenListItems[2 * u + 1].FCost)
                         v = 2 * u + 1;
                 }
                 else
@@ -120,7 +114,7 @@ namespace Client
                     if (2 * u <= orderedItemsLastIndex) //if only child #1 exists
                     {
                         //Check if the F cost of the parent is greater than child #1	
-                        if (_open[_binaryHeapIdsOfOpenListItems[u]].FCost >= _open[_binaryHeapIdsOfOpenListItems[2 * u]].FCost)
+                        if (_binaryHeapIdsOfOpenListItems[u].FCost >= _binaryHeapIdsOfOpenListItems[2 * u].FCost)
                             v = 2 * u;
                     }
                 }
