@@ -8,8 +8,8 @@ namespace Client
     /// </summary>
     public class Pathfinder
     {
-        private readonly Int64 _mapWidth;
-        private readonly Int64 _mapHeight;
+        public Int64 MapWidth { get; private set; }
+        public Int64 MapHeight { get; private set; }
 
         private const int NotStarted = 0;
         private const int Found = 1;
@@ -23,10 +23,10 @@ namespace Client
 
         public Pathfinder(Int64 mapWidth, Int64 mapHeight)
         {
-            _mapWidth = mapWidth;
-            _mapHeight = mapHeight;
-            _locations = InitializeLocations(_mapWidth + 1, mapHeight + 1);
-            _heap = new PathfindingBinaryHeap(_mapWidth * _mapHeight);
+            MapWidth = mapWidth;
+            MapHeight = mapHeight;
+            _locations = InitializeLocations(MapWidth + 1, mapHeight + 1);
+            _heap = new PathfindingBinaryHeap(MapWidth * MapHeight);
         }
 
         private static PathfindingState[,] InitializeLocations(long width, long height)
@@ -42,13 +42,13 @@ namespace Client
             return locations;
         }
 
-        public Maybe<Direction> FindPath(Location startPoint, Location target, Location[] blockedLocations)
+        public Maybe<Direction> FindPath(Location startPoint, Location target, bool[,] blockedLocations)
         {
             _heap.Clear();
             if (startPoint == target || !IsInGamefield(target))
                 return Maybe<Direction>.Nothing;
 
-            ResetWhichList();
+            ResetPathdinfing();
 
             _pathLength = NotStarted;
             _locations[startPoint.X, startPoint.Y].MovementCostFromStart = 0;
@@ -83,8 +83,8 @@ namespace Client
                         {
                             //Figure out its H and F costs and parent
                             var newItem = _locations[location.X, location.Y];
-                            newItem.MovementCostFromStart = newItem.MovementCostFromStart + CalculateAddedCost(location.X, parent.Location.X, location.Y, parent.Location.Y);
-                            newItem.EstimatedMovementCostToTarget = 10 * (Math.Abs(location.X - target.X) + Math.Abs(location.Y - target.Y));
+                            newItem.MovementCostFromStart = newItem.MovementCostFromStart + CalculateAddedCost(location, parent.Location);
+                            newItem.EstimatedMovementCostToTarget = NonDiagonalMovementCost * (Math.Abs(location.X - target.X) + Math.Abs(location.Y - target.Y));
                             newItem.FCost = newItem.MovementCostFromStart + newItem.EstimatedMovementCostToTarget;
                             newItem.Parent = parent;
                             newItem.Status = ListStatus.Open;
@@ -133,29 +133,30 @@ namespace Client
 
         private void AdjustLocationIfCloserFromStart(PathfindingState parent, Location location)
         {
-            var calculatedCostFromStart = parent.MovementCostFromStart +
-                                          CalculateAddedCost(location.X, parent.Location.X, location.Y, parent.Location.Y);
+            var calculatedCostFromStart = parent.MovementCostFromStart + CalculateAddedCost(location, parent.Location);
             if (calculatedCostFromStart >= _locations[location.X, location.Y].MovementCostFromStart)
                 return;
 
             var considered = _locations[location.X, location.Y];
             considered.Parent = parent;
             considered.MovementCostFromStart = calculatedCostFromStart;
-            _heap.CalculateNewFCostAndSort(location.X, location.Y, considered.MovementCostFromStart);
+            _heap.CalculateNewFCostAndSort(location, considered.MovementCostFromStart);
         }
 
-        private static Location[] AdjacentLocations(Location location)
+        private Location[] AdjacentLocations(Location location)
         {
             var locations = new Location[9];
+
             var i = 0;
             for (var yCoordinate = location.Y - 1; yCoordinate <= location.Y + 1; yCoordinate++)
             {
-                for (var xCoordinate = location.X - 1; xCoordinate <= location.X + 1; xCoordinate++)
+                for (var xCoordinate = location.X - 1; xCoordinate <= (location.X + 1); xCoordinate++)
                 {
                     locations[i] = new Location(xCoordinate, yCoordinate);
                     i++;
                 }
             }
+            
             return locations;
         }
 
@@ -178,7 +179,7 @@ namespace Client
             return final;
         }
 
-        private static bool IsCornerWalkable(Location[] blockedLocations, Location location, Location parent)
+        private static bool IsCornerWalkable(bool[,] blockedLocations, Location location, Location parent)
         {
             if (location.X == parent.X - 1)
             {
@@ -213,33 +214,33 @@ namespace Client
             return true;
         }
 
-        private void ResetWhichList()
+        private void ResetPathdinfing()
         {
-            for (var x = 0; x < _mapWidth; x++)
-                for (var y = 0; y < _mapHeight; y++)
-                    _locations[x, y].Status = ListStatus.None;
+            foreach (var location in _locations)
+            {
+                location.Status = ListStatus.None;
+                location.Parent = null;
+                location.FCost = 0;
+                location.EstimatedMovementCostToTarget = 0;
+                location.MovementCostFromStart = 0;
+            }
         }
 
-        private static int CalculateAddedCost(long xCoordinate, long parentXval, long yCoordinate, long parentYval)
+        private static int CalculateAddedCost(Location location, Location parent)
         {
-            if (Math.Abs(xCoordinate - parentXval) == 1 && Math.Abs(yCoordinate - parentYval) == 1)
+            if (location.X - parent.X != 0 && location.Y - parent.Y != 0)
                 return DiagonalMovementCost;	
             return NonDiagonalMovementCost;
         }
 
-        private static bool CanBeTraversed(Location[] blockedLocations, long x, long y)
+        private static bool CanBeTraversed(bool[,] blockedLocations, long x, long y)
         {
-            foreach (var location in blockedLocations)
-            {
-                if (location.X == x && location.Y == y)
-                    return false;
-            }
-            return true;
+            return !blockedLocations[x, y];
         }
 
         private bool IsInGamefield(Location location)
         {
-            return location.X >= 0 && location.X < _mapWidth && location.Y >= 0 && location.Y < _mapHeight;
+            return location.X >= 0 && location.X < MapWidth && location.Y >= 0 && location.Y < MapHeight;
         }
     }
 }

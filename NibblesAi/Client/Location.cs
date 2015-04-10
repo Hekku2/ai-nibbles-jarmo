@@ -44,6 +44,11 @@ namespace Client
             return !(location1 == location2);
         }
 
+        public static Location operator +(Location location1, Location location2)
+        {
+            return new Location(location1.X + location2.X, location1.Y+ location2.Y);
+        }
+
         protected bool Equals(Location other)
         {
             return X == other.X && Y == other.Y;

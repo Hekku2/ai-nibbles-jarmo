@@ -58,7 +58,7 @@ namespace ClientTests
             heap.Add(lowest);
             heap.Add(middle);
             
-            heap.CalculateNewFCostAndSort(1, 1, 1);
+            heap.CalculateNewFCostAndSort(new Location(1,1), 1);
             Assert.AreEqual(1, heap.Pop().FCost);
         }
     }

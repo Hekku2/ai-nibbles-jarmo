@@ -53,8 +53,8 @@ namespace Client
                         break;
                     }
 
-                    Location[] blocked = JsonFormatHelper.GetBlockedLocations(dynamicData);
-                    Maybe<Direction> target = _pathfinder.FindPath(snake.HeadPosition, _apple, blocked);
+                    bool[,] blockedLocations = JsonFormatHelper.GetBlockedLocations(dynamicData, _pathfinder.MapWidth, _pathfinder.MapHeight);
+                    Maybe<Direction> target = _pathfinder.FindPath(snake.HeadPosition, _apple, blockedLocations);
                     if (!target.HasValue)
                         break;
 

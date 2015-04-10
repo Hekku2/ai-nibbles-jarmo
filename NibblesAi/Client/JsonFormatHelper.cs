@@ -31,16 +31,15 @@
             return snake;
         }
 
-        public static Location[] GetBlockedLocations(dynamic data)
+        public static bool[,] GetBlockedLocations(dynamic data, long width, long height)
         {
-            var blockedLocations = new Location[data.snakes[0].body.Count + data.snakes[1].body.Count];
-            var index = 0;
+            var blockedLocations = new bool[width, height];
             foreach (var snake in data.snakes)
             {
                 foreach (var bodyPart in snake.body)
                 {
-                    blockedLocations[index] = new Location(bodyPart[0].Value, bodyPart[1].Value);
-                    index++;
+                    if (bodyPart[0].Value > 0 && bodyPart[0].Value < width && bodyPart[1].Value > 0 && bodyPart[1].Value < height)
+                        blockedLocations[bodyPart[0].Value, bodyPart[1].Value] = true;
                 }
             }
 

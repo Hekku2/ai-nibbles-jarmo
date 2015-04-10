@@ -49,12 +49,12 @@ namespace Client
             return _binaryHeapIdsOfOpenListItems[BinaryHeapTopIndex];
         }
 
-        public void CalculateNewFCostAndSort(long x, long y, long movementCostFromStart)
+        public void CalculateNewFCostAndSort(Location location, long movementCostFromStart)
         {
             for (var i = BinaryHeapTopIndex; i <= _numberOfItems; i++) //look for the item in the heap
             {
-                var location = _binaryHeapIdsOfOpenListItems[i];
-                if (location.Location.X != x || location.Location.Y != y)
+                var matching = _binaryHeapIdsOfOpenListItems[i];
+                if (matching.Location.X != location.X || matching.Location.Y != location.Y)
                     continue;
 
                 _binaryHeapIdsOfOpenListItems[i].FCost = movementCostFromStart + _binaryHeapIdsOfOpenListItems[i].EstimatedMovementCostToTarget;
